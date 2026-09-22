@@ -165,7 +165,7 @@ gesture-nav-edge/
 
 ### License
 
-- 本项目原创代码以 **MIT License** 发布（见 `LICENSE`），其中衍生自 globe 的部分
+- 本项目原创代码以 **MIT License** 发布（见 `LICENSE` 与 `NOTICE.md`），其中衍生自 globe 的部分
   同时受上游 MIT 许可证约束，第三方组件（MediaPipe 等）继续按各自许可证处理，
   不受本仓库 MIT 许可证重新授权。
 

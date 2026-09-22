@@ -12,12 +12,6 @@ furnished to do so, subject to the following conditions:
 The above copyright notice and this permission notice shall be included in all
 copies or substantial portions of the Software.
 
-Portions of this Software are derived from the "globe" project
-Copyright (c) 2026 Wenke Sun, licensed under the MIT License.
-The upstream license text is retained in THIRD_PARTY_LICENSES/LICENSE.
-Third-party components (e.g. MediaPipe Hands) remain under their own licenses
-as listed in THIRD_PARTY_LICENSES/THIRD_PARTY_NOTICES.md.
-
 THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
 IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
 FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
