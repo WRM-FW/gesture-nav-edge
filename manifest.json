@@ -1,0 +1,48 @@
+{
+  "manifest_version": 3,
+  "name": "手势导航 · Hand Gesture Navigator",
+  "version": "1.0.3",
+  "description": "用摄像头手势控制当前网页：双手缩放、V 型播放/暂停、握拳回退10秒、单指下一集、四指复制链接、OK 保持关闭标签页。画面本地处理，不上传。",
+  "permissions": [
+    "camera",
+    "tabs",
+    "storage",
+    "sidePanel",
+    "clipboardWrite"
+  ],
+  "background": {
+    "service_worker": "background.js"
+  },
+  "action": {
+    "default_title": "打开手势导航侧边栏",
+    "default_icon": {
+      "16": "icons/icon16.png",
+      "48": "icons/icon48.png",
+      "128": "icons/icon128.png"
+    }
+  },
+  "side_panel": {
+    "default_path": "panel/panel.html"
+  },
+  "content_scripts": [
+    {
+      "matches": [
+        "http://*/*",
+        "https://*/*"
+      ],
+      "js": [
+        "content/controller.js"
+      ],
+      "run_at": "document_idle",
+      "all_frames": false
+    }
+  ],
+  "icons": {
+    "16": "icons/icon16.png",
+    "48": "icons/icon48.png",
+    "128": "icons/icon128.png"
+  },
+  "content_security_policy": {
+    "extension_pages": "script-src 'self' 'wasm-unsafe-eval'; object-src 'self'"
+  }
+}

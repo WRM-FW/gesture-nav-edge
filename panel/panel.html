@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>手势导航</title>
+  <link rel="stylesheet" href="panel.css" />
+</head>
+<body>
+  <header>
+    <div class="title">
+      <span class="logo">🖐️</span>
+      <div>
+        <h1>手势导航</h1>
+        <p class="sub">摄像头控制当前网页 · 本地识别不上传</p>
+      </div>
+    </div>
+    <div id="status-pill" class="pill off">未启动</div>
+  </header>
+
+  <section class="preview-wrap">
+    <div class="preview">
+      <video id="camera" playsinline muted autoplay></video>
+      <canvas id="overlay"></canvas>
+      <svg id="victory-ring" viewBox="0 0 100 100" aria-hidden="true">
+        <circle class="ring-bg" cx="50" cy="50" r="42" />
+        <circle id="ring-fg" class="ring-fg" cx="50" cy="50" r="42" />
+        <text id="ring-text" x="50" y="55" text-anchor="middle">👌</text>
+      </svg>
+      <div id="gesture-label" class="gesture-label"></div>
+    </div>
+    <button id="toggle-btn" class="start-btn">▶ 启动手势</button>
+    <button id="grant-btn" class="grant-btn" title="在标签页中打开面板并请求摄像头授权（授权一次后侧边栏即可使用）">🔑 没弹摄像头授权窗？点这里授权一次</button>
+  </section>
+
+  <section class="cards">
+    <div class="card" id="card-zoom">
+      <div class="card-icon">🤲</div>
+      <div class="card-name">页面缩放</div>
+      <div class="card-desc">双手同时向外 = 放大；向内 = 缩小（连续会话）</div>
+    </div>
+    <div class="card" id="card-video">
+      <div class="card-icon">✌️</div>
+      <div class="card-name">视频播放 / 暂停</div>
+      <div class="card-desc">V 型手势保持约 0.6 秒</div>
+    </div>
+    <div class="card" id="card-seek">
+      <div class="card-icon">👊</div>
+      <div class="card-name">视频回退 10 秒</div>
+      <div class="card-desc">握拳保持 0.8 秒</div>
+    </div>
+    <div class="card" id="card-next">
+      <div class="card-icon">☝️</div>
+      <div class="card-name">播放下一集</div>
+      <div class="card-desc">只伸食指（其余含拇指全部收拢）保持约 0.4 秒</div>
+    </div>
+    <div class="card" id="card-copy">
+      <div class="card-icon">🤟</div>
+      <div class="card-name">复制网页链接</div>
+      <div class="card-desc">收起拇指、伸出其余四指保持约 0.4 秒</div>
+    </div>
+    <div class="card danger" id="card-close">
+      <div class="card-icon">👌</div>
+      <div class="card-name">关闭标签页</div>
+      <div class="card-desc">OK 手势保持 0.8 秒（圆环倒计时）</div>
+    </div>
+  </section>
+
+  <section class="settings">
+    <label class="row">
+      <span>灵敏度</span>
+      <select id="sensitivity">
+        <option value="low">低（更稳，防误触）</option>
+        <option value="normal" selected>中（推荐）</option>
+        <option value="high">高（更跟手）</option>
+      </select>
+    </label>
+    <label class="row check">
+      <input type="checkbox" id="allow-close" checked />
+      <span>允许手势关闭标签页</span>
+    </label>
+    <label class="row check">
+      <input type="checkbox" id="autostart" />
+      <span>打开面板时自动启动摄像头</span>
+    </label>
+    <div class="readout">
+      <span>页面缩放 <b id="zoom-readout">100%</b></span>
+      <span>识别帧率 <b id="fps-readout">--</b></span>
+    </div>
+  </section>
+
+  <section class="log-wrap">
+    <h2>动作日志</h2>
+    <ul id="log"></ul>
+  </section>
+
+  <footer>
+    仅支持普通 http/https 网页 · edge:// 等浏览器页面无法注入控制脚本
+  </footer>
+
+  <!-- 本地 MediaPipe Hands（与原项目同一套资源，离线可用） -->
+  <script src="../mediapipe/hands.js"></script>
+  <script src="../engine/gesture-engine.js"></script>
+  <script src="panel.js"></script>
+</body>
+</html>
