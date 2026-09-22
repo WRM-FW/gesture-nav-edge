@@ -104,7 +104,26 @@ async function handleAction(msg) {
       return { closed: true };
     }
 
+    case "switch-tab": {
+      return await switchTab(msg.dir < 0 ? -1 : 1);
+    }
+
     default:
       throw new Error("未知动作: " + action);
   }
+}
+
+/* V1.0.5：在普通网页标签之间前后切换（循环），跳过 edge:// / chrome:// 内部页 */
+async function switchTab(dir) {
+  const tabs = await chrome.tabs.query({ currentWindow: true, windowType: "normal" });
+  const usable = tabs.filter(t => typeof t.id === "number" &&
+    !String(t.url || "").startsWith("edge://") &&
+    !String(t.url || "").startsWith("chrome://"));
+  if (usable.length < 2) throw new Error("没有其他可切换的标签页");
+  const activeIndex = usable.findIndex(t => t.active);
+  if (activeIndex < 0) throw new Error("当前活动页不在可切换列表中");
+  const nextIndex = (activeIndex + dir + usable.length) % usable.length;
+  const next = usable[nextIndex];
+  await chrome.tabs.update(next.id, { active: true });
+  return { switched: next.id, forward: dir > 0 };
 }

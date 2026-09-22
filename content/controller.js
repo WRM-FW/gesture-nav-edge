@@ -114,7 +114,7 @@
     );
   }
 
-  /* ---------- V1.0.2：7️⃣ 视频回退 10 秒 ---------- */
+  /* ---------- V1.0.2：👊 视频回退 10 秒 ---------- */
   function seekBackVideo(sec) {
     const v = pickVideo();
     if (!v) return { ok: true, videoFound: false };
@@ -124,6 +124,33 @@
     } catch (e) {
       return { ok: false, videoFound: true, error: String(e && e.message || e) };
     }
+  }
+
+  /* ---------- V1.0.5：视频前进 / 音量± / 页面滚动 ---------- */
+  function seekForwardVideo(sec) {
+    const v = pickVideo();
+    if (!v) return { ok: true, videoFound: false };
+    try {
+      const max = isFinite(v.duration) ? v.duration : Infinity;
+      v.currentTime = Math.min(max, (v.currentTime || 0) + sec);
+      return { ok: true, videoFound: true, to: v.currentTime };
+    } catch (e) {
+      return { ok: false, videoFound: true, error: String(e && e.message || e) };
+    }
+  }
+
+  function changeVolume(delta) {
+    const v = pickVideo();
+    if (!v) return { ok: true, videoFound: false };
+    v.volume = Math.min(1, Math.max(0, (v.volume == null ? 1 : v.volume) + delta));
+    v.muted = v.volume <= 0;
+    return { ok: true, videoFound: true, volume: v.volume };
+  }
+
+  function scrollStep(dir) {
+    const step = Math.round(innerHeight * 0.6);
+    window.scrollBy({ top: dir * step, behavior: "smooth" });
+    return { ok: true };
   }
 
   chrome.runtime.onMessage.addListener((msg, sender, sendResponse) => {
@@ -161,6 +188,18 @@
 
       case "gesture-video-seek-back":
         sendResponse(seekBackVideo(typeof msg.sec === "number" ? msg.sec : 10));
+        return false;
+
+      case "gesture-video-seek-forward":
+        sendResponse(seekForwardVideo(typeof msg.sec === "number" ? msg.sec : 10));
+        return false;
+
+      case "gesture-video-volume":
+        sendResponse(changeVolume(typeof msg.delta === "number" ? msg.delta : 0.1));
+        return false;
+
+      case "gesture-scroll-step":
+        sendResponse(scrollStep(msg.dir > 0 ? 1 : -1));
         return false;
 
       case "gesture-zoom":

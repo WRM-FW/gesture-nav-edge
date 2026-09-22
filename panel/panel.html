@@ -33,37 +33,12 @@
     <button id="grant-btn" class="grant-btn" title="在标签页中打开面板并请求摄像头授权（授权一次后侧边栏即可使用）">🔑 没弹摄像头授权窗？点这里授权一次</button>
   </section>
 
-  <section class="cards">
-    <div class="card" id="card-zoom">
-      <div class="card-icon">🤲</div>
-      <div class="card-name">页面缩放</div>
-      <div class="card-desc">双手同时向外 = 放大；向内 = 缩小（连续会话）</div>
+  <section class="gestures">
+    <div class="g-head">
+      <h2>手势 · 指令映射</h2>
+      <button id="reset-gestures" class="mini-btn">恢复默认</button>
     </div>
-    <div class="card" id="card-video">
-      <div class="card-icon">✌️</div>
-      <div class="card-name">视频播放 / 暂停</div>
-      <div class="card-desc">V 型手势保持约 0.6 秒</div>
-    </div>
-    <div class="card" id="card-seek">
-      <div class="card-icon">👊</div>
-      <div class="card-name">视频回退 10 秒</div>
-      <div class="card-desc">握拳保持 0.8 秒</div>
-    </div>
-    <div class="card" id="card-next">
-      <div class="card-icon">☝️</div>
-      <div class="card-name">播放下一集</div>
-      <div class="card-desc">只伸食指（其余含拇指全部收拢）保持约 0.4 秒</div>
-    </div>
-    <div class="card" id="card-copy">
-      <div class="card-icon">🤟</div>
-      <div class="card-name">复制网页链接</div>
-      <div class="card-desc">收起拇指、伸出其余四指保持约 0.4 秒</div>
-    </div>
-    <div class="card danger" id="card-close">
-      <div class="card-icon">👌</div>
-      <div class="card-name">关闭标签页</div>
-      <div class="card-desc">OK 手势保持 0.8 秒（圆环倒计时）</div>
-    </div>
+    <div id="gesture-list"></div>
   </section>
 
   <section class="settings">

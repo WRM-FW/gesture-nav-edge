@@ -291,6 +291,57 @@ assert(count("video-seek-back") === 0 && takeAll("toggle-video").length === 1,
        "V 型正常触发播放/暂停且不误触回退");
 fakeNow += 1500; clear();
 
+/* ============ 11. V1.0.4 手势配置：独立开关 + 指令重绑 ============ */
+console.log("[11] gesture config: toggles & rebind");
+// —— 禁用 victory ——
+engine.setGestureConfig({ victory: { enabled: false, command: "toggle-video" } });
+teleport(victoryHand(), 4);
+fakeNow += 650; feed(victoryHand());
+assert(count("toggle-video") === 0 && count("copy-url") === 0, "禁用后 V 型保持无任何动作");
+// 其他槽位不受影响：握拳仍可回退
+teleport(fistHand(), 4);
+fakeNow += 900; feed(fistHand());
+assert(takeAll("video-seek-back").length === 1, "禁用单一槽位不影响其他手势");
+// —— 重绑 victory → copy-url ——
+engine.setGestureConfig({ victory: { enabled: true, command: "copy-url" } });
+fakeNow += 1300;
+teleport(victoryHand(), 4);
+fakeNow += 650; feed(victoryHand());
+assert(takeAll("copy-url").length === 1 && count("toggle-video") === 0, "重绑后 V 型执行复制链接");
+// 同一指令可绑多个手势：fist 也绑 copy-url
+engine.setGestureConfig({ fist: { enabled: true, command: "copy-url" } });
+fakeNow += 1300;
+teleport(fistHand(), 4);
+fakeNow += 900; feed(fistHand());
+assert(takeAll("copy-url").length === 1, "多手势绑同一指令可共存");
+// —— 禁用双手通道 ——
+engine.setGestureConfig({ twoHand: { enabled: false } });
+for (let g = 0.10; g <= 0.26; g += 0.02) { step(); feedMulti(twoHands(g)); }
+assert(count("zoom") === 0, "禁用双手通道后无缩放事件");
+// —— 恢复默认后一切复原 ——
+engine.setGestureConfig(null);
+fakeNow += 1500;
+teleport(victoryHand(), 4);
+fakeNow += 650; feed(victoryHand());
+assert(takeAll("toggle-video").length === 1, "恢复默认后 V 型回到播放/暂停");
+for (let g = 0.10; g <= 0.26; g += 0.02) { step(); feedMulti(twoHands(g)); }
+assert(takeAll("zoom").length >= 2, "恢复默认后双手缩放复原");
+fakeNow += 1500; clear();
+
+/* ============ 12. V1.0.5 扩展指令库：新指令可绑定可触发 ============ */
+console.log("[12] extended command library");
+const NEW_COMMANDS = ["video-seek-forward", "volume-up", "volume-down",
+                      "scroll-up", "scroll-down", "switch-tab-next", "switch-tab-prev"];
+for (const cmd of NEW_COMMANDS) {
+  engine.setGestureConfig({ victory: { enabled: true, command: cmd } });
+  fakeNow += 2500;
+  teleport(victoryHand(), 4);
+  fakeNow += 650; feed(victoryHand());
+  const got = takeAll(cmd);
+  assert(got.length === 1, `绑定 ${cmd}：V 型保持触发一次且指令透传无损`);
+}
+engine.setGestureConfig(null);   // 还原默认，避免影响后续
+fakeNow += 2500;
 console.log(`\n结果: ${pass} 通过, ${fail} 失败`);
 Date.now = realNow;
 process.exit(fail ? 1 : 0);

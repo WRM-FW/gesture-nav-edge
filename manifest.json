@@ -1,8 +1,8 @@
 {
   "manifest_version": 3,
   "name": "手势导航 · Hand Gesture Navigator",
-  "version": "1.0.3",
-  "description": "用摄像头手势控制当前网页：双手缩放、V 型播放/暂停、握拳回退10秒、单指下一集、四指复制链接、OK 保持关闭标签页。画面本地处理，不上传。",
+  "version": "1.0.5",
+  "description": "用摄像头手势控制当前网页：12 条功能指令可自由绑定到 6 个手势槽位（缩放、播放/暂停、前进/回退、音量、滚动、下一集、复制链接、切换/关闭标签页）。画面本地处理，不上传。",
   "permissions": [
     "camera",
     "tabs",

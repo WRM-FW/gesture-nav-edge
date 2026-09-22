@@ -85,6 +85,34 @@ const SENSITIVITY = {
   high:   { deadScale: 0.75 }
 };
 
+/* V1.0.4：手势槽位 → 指令的可配置映射。
+ * 每个保持类手势 = { enabled, command }；双手通道是连续会话，只有开关。 */
+const COMMAND_NAMES = {
+  "toggle-video": "播放/暂停",
+  "video-seek-back": "回退 10 秒",
+  "video-seek-forward": "前进 10 秒",
+  "volume-up": "音量增加",
+  "volume-down": "音量降低",
+  "scroll-up": "向上滚动",
+  "scroll-down": "向下滚动",
+  "next-episode": "下一集",
+  "copy-url": "复制链接",
+  "switch-tab-next": "下一个标签页",
+  "switch-tab-prev": "上一个标签页",
+  "close-tab": "关闭标签页",
+  "zoom": "页面缩放"
+};
+function defaultGestureConfig() {
+  return {
+    twoHand:  { enabled: true },
+    victory:  { enabled: true, command: "toggle-video" },
+    fist:     { enabled: true, command: "video-seek-back" },
+    pointing: { enabled: true, command: "next-episode" },
+    four:     { enabled: true, command: "copy-url" },
+    ok:       { enabled: true, command: "close-tab" }
+  };
+}
+
 /* ================= 通用「姿态保持」状态机 =================
  * 候选(confirmFrames) → 保持(holdMs) → 触发一次 → LOCKED(姿态释放才解锁) → 冷却。
  * 用于：👌 OK 保持 → 关闭标签页；✌️ V 型保持 → 视频播放/暂停。 */
@@ -221,6 +249,7 @@ class GestureEngine {
     this.copyUrlFSM = new HoldFSM(this, { holdMs: this.t.copyHoldMs, cooldownMs: this.t.copyCooldownMs, action: "copy-url" });
     this.seekBackFSM = new HoldFSM(this, { holdMs: this.t.fistHoldMs, cooldownMs: this.t.fistCooldownMs, action: "video-seek-back" });
     this.zoomSession = new TwoHandZoomFSM(this);
+    this.gestureCfg = defaultGestureConfig();
     this._resetAll();
 
     // 帧调度健康层
@@ -240,6 +269,25 @@ class GestureEngine {
   }
 
   _emit(action) { this.onAction(action); }
+
+  /* V1.0.4：手势开关与指令重绑。cfg 传部分槽位即可（如 {victory:{enabled:false}}）；
+   * 传 null 恢复全部默认。切换后复位状态机，避免半程状态沿用旧配置。 */
+  setGestureConfig(cfg) {
+    const d = defaultGestureConfig();
+    if (cfg) for (const slot in d) if (cfg[slot]) Object.assign(d[slot], cfg[slot]);
+    this.gestureCfg = d;
+    this._resetAll();
+  }
+  static defaultGestureConfig() { return defaultGestureConfig(); }
+  _cmdName(cmd) { return COMMAND_NAMES[cmd] || cmd || ""; }
+
+  /* 保持类通道统一推进：槽位禁用时喂 false，进行中的生命周期自动作废 */
+  _stepHold(slot, fsm, poseOk, now) {
+    const cfg = this.gestureCfg[slot];
+    const fire = fsm.update(cfg.enabled && poseOk, now);
+    if (!fire || !cfg.command) return null;
+    return { type: cfg.command };
+  }
 
   _resetAll() {
     this._lockedHand = ""; this._lockLastSeenAt = 0;
@@ -444,6 +492,11 @@ class GestureEngine {
       this.nextEpisodeFSM.resetAll(); this.copyUrlFSM.resetAll();
       this.seekBackFSM.resetAll();
       this._victoryFrames = 0; this._posePinchRatioClosed = false;
+      if (!this.gestureCfg.twoHand.enabled) {
+        this.zoomSession.cancel(now);
+        this.onGesture({ handVisible: true, handCount: 2, landmarks: [list[0], list[1]], fps, gestureLabel: "🤲 双手缩放已关闭", holdProgress: 0, states: this._debugStates() });
+        return;
+      }
       const zs = this.zoomSession.update(list, now);
       if (zs.fire) this._emit(zs.fire);
       this.onGesture({
@@ -497,47 +550,30 @@ class GestureEngine {
     const pose = this._extractPose(lm);
     this._victoryFrames = pose.victory ? this._victoryFrames + 1 : 0;
 
-    /* —— 保持类通道（优先级：OK 关标签 > V 型视频）—— */
+    /* —— 保持类通道（配置驱动：独立开关 + 可重绑指令；优先级按数组顺序） —— */
     const pinchClosedNow = this._pinchHysteresis(pose.ratio);
-    const okFire = this.okFSM.update(pinchClosedNow && pose.otherOpen, now);
-    if (okFire) {
-      this._emit(okFire);
-      this.onGesture({ handVisible: true, handCount: 1, landmarks: lm, fps, gestureLabel: "👌 已关闭标签页", holdProgress: 0, states: this._debugStates() });
-      return;
-    }
-    const vidFire = this.videoFSM.update(pose.victory, now);
-    if (vidFire) {
-      this._emit(vidFire);
-      this.onGesture({ handVisible: true, handCount: 1, landmarks: lm, fps, gestureLabel: "✌️ 视频已切换播放/暂停", holdProgress: 0, states: this._debugStates() });
-      return;
-    }
-    /* —— V1.0.1：☝️ 单伸食指 → 下一集；🤟 收拇指伸四指 → 复制链接 —— */
-    const nextFire = this.nextEpisodeFSM.update(pose.pointing, now);
-    if (nextFire) {
-      this._emit(nextFire);
-      this.onGesture({ handVisible: true, handCount: 1, landmarks: lm, fps, gestureLabel: "☝️ 已跳转播放下一集", holdProgress: 0, states: this._debugStates() });
-      return;
-    }
-    const copyFire = this.copyUrlFSM.update(pose.fourNoThumb, now);
-    if (copyFire) {
-      this._emit(copyFire);
-      this.onGesture({ handVisible: true, handCount: 1, landmarks: lm, fps, gestureLabel: "🤟 网页链接已复制", holdProgress: 0, states: this._debugStates() });
-      return;
-    }
-    /* —— V1.0.3：👊 握拳 → 视频回退 10 秒 —— */
-    const seekFire = this.seekBackFSM.update(pose.fist, now);
-    if (seekFire) {
-      this._emit(seekFire);
-      this.onGesture({ handVisible: true, handCount: 1, landmarks: lm, fps, gestureLabel: "👊 视频已回退 10 秒", holdProgress: 0, states: this._debugStates() });
-      return;
+    const HOLD_CHANNELS = [
+      ["ok", this.okFSM, pinchClosedNow && pose.otherOpen, "👌"],
+      ["victory", this.videoFSM, pose.victory, "✌️"],
+      ["pointing", this.nextEpisodeFSM, pose.pointing, "☝️"],
+      ["four", this.copyUrlFSM, pose.fourNoThumb, "🤟"],
+      ["fist", this.seekBackFSM, pose.fist, "👊"]
+    ];
+    for (const [slot, fsm, poseOk, icon] of HOLD_CHANNELS) {
+      const fire = this._stepHold(slot, fsm, poseOk, now);
+      if (fire) {
+        this._emit(fire);
+        this.onGesture({ handVisible: true, handCount: 1, landmarks: lm, fps, gestureLabel: `✓ ${icon} ${this._cmdName(fire.type)}`, holdProgress: 0, states: this._debugStates() });
+        return;
+      }
     }
 
     let label2;
-    if (this.okFSM.holdProgress > 0) label2 = "👌 保持中…关闭标签页";
-    else if (this.videoFSM.state === "holding") label2 = "✌️ 保持中…播放/暂停";
-    else if (this.nextEpisodeFSM.state === "holding") label2 = "☝️ 保持中…下一集";
-    else if (this.copyUrlFSM.state === "holding") label2 = "🤟 保持中…复制链接";
-    else if (this.seekBackFSM.state === "holding") label2 = "👊 保持中…回退 10 秒";
+    if (this.okFSM.holdProgress > 0) label2 = "👌 保持中…" + this._cmdName(this.gestureCfg.ok.command);
+    else if (this.videoFSM.state === "holding") label2 = "✌️ 保持中…" + this._cmdName(this.gestureCfg.victory.command);
+    else if (this.nextEpisodeFSM.state === "holding") label2 = "☝️ 保持中…" + this._cmdName(this.gestureCfg.pointing.command);
+    else if (this.copyUrlFSM.state === "holding") label2 = "🤟 保持中…" + this._cmdName(this.gestureCfg.four.command);
+    else if (this.seekBackFSM.state === "holding") label2 = "👊 保持中…" + this._cmdName(this.gestureCfg.fist.command);
     else if (pose.victory || this._victoryFrames > 0) label2 = "✌️ V 型确认中";
     else if (pinchClosedNow && pose.otherOpen) label2 = "👌 OK 确认中";
     else if (pose.fist) label2 = "👊 握拳确认中";

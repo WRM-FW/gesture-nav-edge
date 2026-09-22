@@ -149,6 +149,46 @@ function onAction(action) {
       });
       break;
 
+    case "video-seek-forward":
+      sendToContentTab({ type: "gesture-video-seek-forward", sec: 10 }).then(res => {
+        if (!res) return;
+        if (!res.videoFound) log("页面中没有找到可控制的视频", true);
+        else if (res.ok) log("视频已前进 10 秒 ⏩");
+        else log("前进失败：" + (res.error || ""), true);
+      });
+      break;
+
+    case "volume-up":
+    case "volume-down": {
+      const delta = action.type === "volume-up" ? 0.1 : -0.1;
+      sendToContentTab({ type: "gesture-video-volume", delta }).then(res => {
+        if (!res) return;
+        if (!res.videoFound) log("页面中没有找到可控制的视频", true);
+        else log(`音量 → ${Math.round(res.volume * 100)}%` + (res.volume <= 0 ? "（已静音）" : ""));
+      });
+      break;
+    }
+
+    case "scroll-up":
+    case "scroll-down": {
+      const dir = action.type === "scroll-down" ? 1 : -1;
+      sendToContentTab({ type: "gesture-scroll-step", dir });
+      log(dir > 0 ? "页面向下滚一屏×0.6" : "页面向上滚一屏×0.6");
+      break;
+    }
+
+    case "switch-tab-next":
+    case "switch-tab-prev": {
+      const dir = action.type === "switch-tab-next" ? 1 : -1;
+      chrome.runtime.sendMessage({ type: "gesture-action", action: "switch-tab", dir })
+        .then(res => {
+          if (res && res.ok) log(`已切换到${dir > 0 ? "下" : "上"}一个标签页`);
+          else if (res && res.error) warnOnce("切换标签页失败：" + res.error);
+        })
+        .catch(err => warnOnce("切换标签页失败：" + err.message));
+      break;
+    }
+
     case "close-tab":
       if (!settings.allowClose) { warnOnce("关闭标签页手势已被设置禁用"); break; }
       chrome.runtime.sendMessage({ type: "gesture-action", action: "close-tab" })
@@ -201,21 +241,124 @@ function drawOverlay() {
 }
 requestAnimationFrame(drawOverlay);
 
-/* ---------------- 手势可视化（卡片高亮 / 倒计时环） ---------------- */
+/* ---------------- 手势 · 指令映射（V1.0.4 自定义配置） ---------------- */
 
-const CARD_BY_LABEL = [
-  ["缩放", "card-zoom"], ["放大", "card-zoom"], ["缩小", "card-zoom"],
-  ["关闭", "card-close"],
-  ["视频", "card-video"], ["播放", "card-video"], ["V 型", "card-video"],
-  ["下一集", "card-next"], ["食指", "card-next"],
-  ["复制", "card-copy"], ["四指", "card-copy"], ["链接", "card-copy"],
-  ["回退", "card-seek"], ["握拳", "card-seek"]
+const GESTURE_SLOTS = [
+  { id: "twoHand",  icon: "🤲", name: "双手相远 / 相近", hint: "连续会话", fixedCmd: "zoom" },
+  { id: "victory",  icon: "✌️", name: "V 型保持 0.6s", hint: "食指中指伸、无名小指收" },
+  { id: "fist",     icon: "👊", name: "握拳保持 0.8s", hint: "五指全部收拢" },
+  { id: "pointing", icon: "☝️", name: "单伸食指保持 0.4s", hint: "仅食指伸出" },
+  { id: "four",     icon: "🤟", name: "收拇指伸四指保持 0.4s", hint: "L 形" },
+  { id: "ok",       icon: "👌", name: "OK 保持 0.8s", hint: "高风险操作", danger: true }
 ];
+const COMMAND_OPTIONS = [
+  ["toggle-video", "视频播放 / 暂停"],
+  ["video-seek-back", "视频回退 10 秒"],
+  ["video-seek-forward", "视频前进 10 秒"],
+  ["volume-up", "音量增加"],
+  ["volume-down", "音量降低"],
+  ["scroll-up", "页面向上滚动"],
+  ["scroll-down", "页面向下滚动"],
+  ["next-episode", "播放下一集"],
+  ["copy-url", "复制网页链接"],
+  ["switch-tab-next", "切换下一个标签页"],
+  ["switch-tab-prev", "切换上一个标签页"],
+  ["close-tab", "关闭标签页"]
+];
+const DEFAULT_BINDINGS = {
+  twoHand:  { enabled: true },
+  victory:  { enabled: true, command: "toggle-video" },
+  fist:     { enabled: true, command: "video-seek-back" },
+  pointing: { enabled: true, command: "next-episode" },
+  four:     { enabled: true, command: "copy-url" },
+  ok:       { enabled: true, command: "close-tab" }
+};
+
+let bindings = JSON.parse(JSON.stringify(DEFAULT_BINDINGS));
+
+function applyGestureConfig() {
+  if (engine) engine.setGestureConfig(bindings);
+}
+
+function renderGestureList() {
+  const list = $("gesture-list");
+  list.innerHTML = "";
+  for (const slot of GESTURE_SLOTS) {
+    const cfg = bindings[slot.id];
+    const row = document.createElement("div");
+    row.className = "g-row" + (slot.danger ? " danger" : "");
+    row.dataset.slot = slot.id;
+
+    const icon = document.createElement("span");
+    icon.className = "g-icon";
+    icon.textContent = slot.icon;
+
+    const info = document.createElement("div");
+    info.className = "g-info";
+    info.innerHTML = `<b>${slot.name}</b><small>${slot.hint || ""}</small>`;
+
+    row.append(icon, info);
+
+    if (slot.fixedCmd) {
+      const fixed = document.createElement("span");
+      fixed.className = "g-cmd fixed";
+      fixed.textContent = (COMMAND_OPTIONS.map(([v, n]) => v === slot.fixedCmd ? n : "")[0] || slot.fixedCmd) + "（固定）";
+      row.appendChild(fixed);
+    } else {
+      const sel = document.createElement("select");
+      sel.className = "g-cmd";
+      for (const [val, name] of COMMAND_OPTIONS) {
+        const opt = document.createElement("option");
+        opt.value = val; opt.textContent = name;
+        sel.appendChild(opt);
+      }
+      sel.value = cfg.command;
+      sel.addEventListener("change", () => {
+        bindings[slot.id].command = sel.value;
+        saveGestureConfig();
+        applyGestureConfig();
+        log(`已重绑 ${slot.icon} ${slot.name} → ${sel.selectedOptions[0].textContent}`);
+      });
+      row.appendChild(sel);
+    }
+
+    const label = document.createElement("label");
+    label.className = "switch";
+    const chk = document.createElement("input");
+    chk.type = "checkbox";
+    chk.checked = !!cfg.enabled;
+    chk.addEventListener("change", () => {
+      bindings[slot.id].enabled = chk.checked;
+      row.classList.toggle("off", !chk.checked);
+      saveGestureConfig();
+      applyGestureConfig();
+      log(`${slot.icon} ${slot.name} 已${chk.checked ? "启用" : "关闭"}`);
+    });
+    const knob = document.createElement("span");
+    label.append(chk, knob);
+    row.appendChild(label);
+
+    if (!cfg.enabled) row.classList.add("off");
+    list.appendChild(row);
+  }
+}
+
+$("reset-gestures").addEventListener("click", () => {
+  bindings = JSON.parse(JSON.stringify(DEFAULT_BINDINGS));
+  renderGestureList();
+  saveGestureConfig();
+  applyGestureConfig();
+  log("手势映射已恢复默认");
+});
+
+function saveGestureConfig() {
+  chrome.storage.local.set({ "gn-gestures": bindings }).catch(() => {});
+}
 
 function onGesture(state) {
   lastLandmarks = state.handVisible ? state.landmarks : null;
 
-  // 倒计时环（OK 保持 → 关闭标签页）
+  // 倒计时环（OK 保持进度）
   const ring = $("victory-ring");
   const fg = $("ring-fg");
   const progress = state.holdProgress || 0;
@@ -230,11 +373,12 @@ function onGesture(state) {
   $("gesture-label").textContent = state.gestureLabel || "";
   $("fps-readout").textContent = state.fps ? state.fps + " fps" : "--";
 
-  document.querySelectorAll(".card").forEach(c => c.classList.remove("active"));
+  // 高亮当前正在保持/触发的 gesture 行
   const label = state.gestureLabel || "";
-  for (const [key, id] of CARD_BY_LABEL) {
-    if (label.includes(key)) { $(id).classList.add("active"); break; }
-  }
+  document.querySelectorAll(".g-row").forEach(r => {
+    const slot = GESTURE_SLOTS.find(s => s.id === r.dataset.slot);
+    r.classList.toggle("active", !!slot && slot.icon !== "🤲" && label.includes(slot.icon));
+  });
 }
 
 function onStatus(text) {
@@ -284,6 +428,7 @@ async function start() {
       onStatus
     });
     engine.setSensitivity(settings.sensitivity);
+    engine.setGestureConfig(bindings);
     await engine.start();
     running = true;
     setPill(GRANT_MODE ? "授权模式 · 识别中" : "识别中", "on");
@@ -338,8 +483,15 @@ $("grant-btn").addEventListener("click", () => {
 
 async function loadSettings() {
   try {
-    const stored = await chrome.storage.local.get(["gn-settings"]);
+    const stored = await chrome.storage.local.get(["gn-settings", "gn-gestures"]);
     if (stored && stored["gn-settings"]) Object.assign(settings, stored["gn-settings"]);
+    if (stored && stored["gn-gestures"]) {
+      const src = stored["gn-gestures"];
+      for (const slot in bindings) if (src[slot]) Object.assign(bindings[slot], src[slot]);
+    } else if (settings.allowClose === false) {
+      // 迁移旧版全局开关：禁止关标签 → 关掉默认的 close-tab 槽位（OK）
+      bindings.ok.enabled = false;
+    }
   } catch (e) { /* 首次运行 */ }
   $("sensitivity").value = settings.sensitivity;
   $("allow-close").checked = settings.allowClose;
@@ -370,6 +522,7 @@ window.addEventListener("pagehide", () => { if (engine) engine.stop(); stopCamer
 
 (async () => {
   await loadSettings();
+  renderGestureList();
   if (GRANT_MODE) {
     setPill("授权模式", "off");
     log("标签页授权模式：点击下方按钮（或系统询问时选「允许」）完成摄像头授权");
