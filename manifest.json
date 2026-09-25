@@ -1,14 +1,15 @@
 {
   "manifest_version": 3,
   "name": "手势导航 · Hand Gesture Navigator",
-  "version": "1.0.5",
-  "description": "用摄像头手势控制当前网页：12 条功能指令可自由绑定到 6 个手势槽位（缩放、播放/暂停、前进/回退、音量、滚动、下一集、复制链接、切换/关闭标签页）。画面本地处理，不上传。",
+  "version": "1.0.6",
+  "description": "用摄像头手势控制当前网页：12 条功能指令可自由绑定到 6 个手势槽位。支持页面内圆角悬浮窗模式，切标签不消失。画面本地处理，不上传。",
   "permissions": [
     "camera",
     "tabs",
     "storage",
     "sidePanel",
-    "clipboardWrite"
+    "clipboardWrite",
+    "offscreen"
   ],
   "background": {
     "service_worker": "background.js"
@@ -31,7 +32,8 @@
         "https://*/*"
       ],
       "js": [
-        "content/controller.js"
+        "content/controller.js",
+        "content/float.js"
       ],
       "run_at": "document_idle",
       "all_frames": false

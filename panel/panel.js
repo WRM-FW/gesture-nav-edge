@@ -31,6 +31,8 @@ const settings = {
 
 /* 标签页授权模式：?grant=1 打开时自动启动并引导用户完成一次性授权 */
 const GRANT_MODE = new URLSearchParams(location.search).get("grant") === "1";
+/* V1.0.6：悬浮窗点击恢复（sidePanel.open 不可用时的标签页兜底）也自动启动 */
+const FLOAT_RESUME = new URLSearchParams(location.search).get("float-resume") === "1";
 let grantTabOpened = false;
 
 function openGrantTab() {
@@ -119,7 +121,10 @@ function onAction(action) {
       sendToContentTab({ type: "gesture-zoom", level: zoomLevel });
       $("zoom-readout").textContent = Math.round(zoomLevel * 100) + "%";
       clearTimeout(zoomLogTimer);
-      zoomLogTimer = setTimeout(() => log(`缩放会话结束 → ${Math.round(zoomLevel * 100)}%`), 500);
+      zoomLogTimer = setTimeout(() => {
+        log(`缩放会话结束 → ${Math.round(zoomLevel * 100)}%`);
+        chrome.storage.local.set({ "gn-zoom": { level: zoomLevel } }).catch(() => {});
+      }, 500);
       break;
     }
 
@@ -419,6 +424,15 @@ async function start() {
   if (running) return;
   setPill("启动中…", "off");
   try {
+    // V1.0.6：缩放级别延续上一会话（与悬浮窗 offscreen 共享 gn-zoom）
+    try {
+      const zst = await chrome.storage.local.get(["gn-zoom"]);
+      const lv = zst && zst["gn-zoom"] && zst["gn-zoom"].level;
+      if (typeof lv === "number") {
+        zoomLevel = clampZoom(lv);
+        $("zoom-readout").textContent = Math.round(zoomLevel * 100) + "%";
+      }
+    } catch (e) { /* 默认从 100% 起 */ }
     await startCamera();
     engine = new GestureEngine({
       video,
@@ -479,6 +493,25 @@ $("grant-btn").addEventListener("click", () => {
   else { grantTabOpened = false; openGrantTab(); }
 });
 
+/* ---------------- V1.0.6 · 悬浮窗模式 ---------------- */
+
+async function enterFloatMode() {
+  if (GRANT_MODE) { log("授权标签页不支持悬浮窗模式", true); return; }
+  stop();                      // 先释放摄像头，交给 offscreen 宿主
+  try {
+    const res = await chrome.runtime.sendMessage({ type: "float-enter" });
+    if (res && res.ok) {
+      // 成功后侧边栏会被 background 自动关闭；不支持 close 的旧版本停留在此页
+      log("已切入悬浮窗模式：拖边缩放，单击悬浮窗返回面板");
+    } else {
+      log("进入悬浮窗失败：" + ((res && res.error) || "未知错误"), true);
+    }
+  } catch (e) {
+    log("进入悬浮窗失败：" + (e.message || e), true);
+  }
+}
+$("float-btn").addEventListener("click", enterFloatMode);
+
 /* ---------------- 设置持久化 ---------------- */
 
 async function loadSettings() {
@@ -524,10 +557,33 @@ window.addEventListener("pagehide", () => { if (engine) engine.stop(); stopCamer
   await loadSettings();
   renderGestureList();
   if (GRANT_MODE) {
+    $("float-btn").style.display = "none";
     setPill("授权模式", "off");
     log("标签页授权模式：点击下方按钮（或系统询问时选「允许」）完成摄像头授权");
     start();                     // 标签页里 getUserMedia 会正常弹出授权询问
-  } else if (settings.autostart) {
-    start();
+    return;
   }
+  // V1.0.6：悬浮窗联动——面板被手动打开时接管悬浮窗；被点击恢复时自动启动
+  let f = null;
+  try {
+    const st = await chrome.storage.local.get(["gn-float"]);
+    f = st && st["gn-float"];
+  } catch (e) { /* 无状态 */ }
+  if (f && f.active) {
+    try { await chrome.runtime.sendMessage({ type: "float-takeover" }); } catch (e) { /* 忽略 */ }
+    log("检测到悬浮窗模式，已收回侧边栏");
+    await new Promise(r => setTimeout(r, 300));   // 等 offscreen 卸载、摄像头释放
+    start();
+    return;
+  }
+  if (FLOAT_RESUME || (f && f.resume)) {
+    try {
+      await chrome.storage.local.set({ "gn-float": Object.assign({}, f, { resume: false }) });
+    } catch (e) { /* 忽略 */ }
+    log("已从悬浮窗返回侧边栏");
+    await new Promise(r => setTimeout(r, 300));   // 等 offscreen 卸载、摄像头释放
+    start();
+    return;
+  }
+  if (settings.autostart) start();
 })();

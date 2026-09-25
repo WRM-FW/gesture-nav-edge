@@ -110,6 +110,17 @@ h1 { font-size: 15px; font-weight: 600; }
 }
 .grant-btn:hover { color: var(--warn); border-color: var(--warn); }
 
+.float-btn {
+  padding: 7px 0;
+  border-radius: 8px;
+  border: 1px solid var(--line);
+  background: linear-gradient(180deg, rgba(79,140,255,.14), rgba(79,140,255,.06));
+  color: var(--accent, #4f8cff);
+  font-size: 12px;
+  cursor: pointer;
+}
+.float-btn:hover { border-color: var(--accent, #4f8cff); filter: brightness(1.15); }
+
 .gestures {
   background: var(--panel);
   border: 1px solid var(--line);

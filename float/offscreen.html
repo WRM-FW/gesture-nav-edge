@@ -1,0 +1,21 @@
+<!DOCTYPE html>
+<!-- V1.0.6 · 悬浮窗模式的离屏宿主：
+     侧边栏被自动隐藏后，摄像头与手势引擎在此继续运行，
+     画面以低频 JPEG 帧中继给页面内的悬浮窗（content/float.js）。 -->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8" />
+  <title>手势导航 · 悬浮窗宿主</title>
+  <style>
+    html, body { margin: 0; width: 4px; height: 4px; overflow: hidden; }
+    video, canvas { visibility: hidden; position: fixed; left: 0; top: 0; }
+  </style>
+</head>
+<body>
+  <video id="camera" playsinline muted autoplay></video>
+  <canvas id="pump"></canvas>
+  <script src="../mediapipe/hands.js"></script>
+  <script src="../engine/gesture-engine.js"></script>
+  <script src="offscreen.js"></script>
+</body>
+</html>
